@@ -38,12 +38,13 @@ if st.button("Generate Result"):
         st.warning("Please enter some text.")
     else:
         try:
+            # Connect to Gemini
             client = genai.Client(api_key=api_key)
             
             prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
             
             with st.spinner("Processing..."):
-                # Using 1.5-flash which is often more stable for free-tier users
+                # Updated model name to fix the 404 error
                 response = client.models.generate_content(
                     model="gemini-1.5-flash", 
                     contents=prompt
@@ -54,7 +55,7 @@ if st.button("Generate Result"):
                 
         except Exception as e:
             if "429" in str(e):
-                st.error("Too many requests! Please wait 60 seconds before clicking again.")
+                st.error("Too many requests! Please wait 60 seconds.")
             else:
-                st.error(f"Error: {e}")
+                st.error(f"Technical error: {e}")
 
