@@ -1,61 +1,79 @@
 import streamlit as st
 from google import genai
+import PyPDF2
+from docx import Document
+import io
 
-# Page Config
-st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
+# --- 1. Helper Function to Read Files ---
+def extract_text_from_file(uploaded_file):
+    if uploaded_file.type == "application/pdf":
+        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        return text
+    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        doc = Document(uploaded_file)
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        return uploaded_file.read().decode("utf-8")
 
-# Sidebar
+# --- 2. Page Config & Sidebar ---
+st.set_page_config(page_title="Pro Reader AI", page_icon="📚")
+
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_key = st.text_input("Paste Gemini API Key", type="password")
-    st.info("Tip: If you get a '429' error, just wait 30 seconds.")
+    # Using secrets is better for monetization, but keeping this for your testing:
+    api_key = st.text_input("Gemini API Key", type="password")
+    st.info("Upload a PDF or Word doc to begin.")
 
-st.title("📖 Reading Made Easy")
+st.title("📚 Pro Reading Assistant")
 st.markdown("---")
 
-# 1. User Input
-user_input = st.text_area("Paste your text here:", height=200)
+# --- 3. Input Selection (Text or File) ---
+input_method = st.radio("Choose Input Method:", ["Paste Text", "Upload File"], horizontal=True)
 
-# 2. Language Selection (Option Buttons)
+user_content = ""
+if input_method == "Paste Text":
+    user_content = st.text_area("Paste your text here:", height=200)
+else:
+    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt"])
+    if uploaded_file:
+        with st.spinner("Reading file..."):
+            user_content = extract_text_from_file(uploaded_file)
+            st.success("File loaded successfully!")
+
+# --- 4. Options ---
 st.write("**Select Target Language:**")
 lang_options = ["Telugu", "Hindi", "English", "Spanish", "French", "Other"]
 target_lang = st.radio("Choose one:", lang_options, horizontal=True)
 
-if target_lang == "Other":
-    target_lang = st.text_input("Type other language:")
+task = st.selectbox("What should the AI do?", ["Summarize", "Translate", "Simplify", "Extract Key Points"])
 
-# 3. Task Selection
-task = st.selectbox(
-    "What should the AI do?",
-    ["Summarize", "Translate", "Draft an Email", "Simplify"]
-)
-
+# --- 5. Execution ---
 if st.button("Generate Result"):
     if not api_key:
-        st.error("Please enter your API Key in the sidebar!")
-    elif not user_input:
-        st.warning("Please enter some text.")
+        st.error("Please enter your API Key!")
+    elif not user_content:
+        st.warning("Please provide some content (text or file).")
     else:
         try:
             client = genai.Client(api_key=api_key)
+            # Improved Prompt for better results
+            prompt = f"Task: {task}. Target Language: {target_lang}. Input Text: {user_content}"
             
-            prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
-            
-            with st.spinner("🚀 AI is working..."):
-                # Using the latest 2.5-flash for maximum speed and success
+            with st.spinner("🚀 AI is processing your document..."):
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash", 
+                    model="gemini-2.5-flash",
                     contents=prompt
                 )
-                st.success("Success!")
+                st.success("Done!")
                 st.markdown("### Result:")
                 st.write(response.text)
                 
+                # Monetization Tip: Add a "Download Result" button here
+                st.download_button("Download Result as Text", response.text, file_name="result.txt")
+
         except Exception as e:
-            if "429" in str(e):
-                st.error("Wait 30 seconds for the free tier to reset.")
-            elif "404" in str(e):
-                st.error("Model update required. Please use 'gemini-2.5-flash'.")
-            else:
-                st.error(f"Error: {e}")
+            st.error(f"Error: {e}")
 
