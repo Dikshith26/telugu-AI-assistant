@@ -1,37 +1,58 @@
+import streamlit as st
+from google import genai
+import PyPDF2
+from docx import Document
+import io
+
+# 1. Setup
+st.set_page_config(page_title="Pro Reader AI", page_icon="📚")
+
+# 2. Sidebar
+with st.sidebar:
+    st.title("⚙️ Settings")
+    api_key = st.text_input("Gemini API Key", type="password")
+    st.info("Upload a PDF or Word doc to begin.")
+
+st.title("📚 Pro Reading Assistant")
+
+# 3. Input
+input_method = st.radio("Choose Input Method:", ["Paste Text", "Upload File"], horizontal=True)
+
+user_content = ""
+if input_method == "Paste Text":
+    user_content = st.text_area("Paste text here:", height=200)
+else:
+    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt"])
+    if uploaded_file:
+        if uploaded_file.type == "application/pdf":
+            reader = PyPDF2.PdfReader(uploaded_file)
+            user_content = "".join([page.extract_text() for page in reader.pages])
+        else:
+            user_content = uploaded_file.read().decode("utf-8")
+
+# 4. Action
+target_lang = st.selectbox("Target Language", ["Telugu", "Hindi", "English", "Spanish"])
+task = st.selectbox("Task", ["Summarize", "Translate", "Simplify"])
+
 if st.button("Generate Result"):
     if not api_key:
-        st.error("Please enter your API Key!")
-    elif not user_content:
-        st.warning("Please provide some content (text or file).")
+        st.error("Missing API Key")
     else:
         try:
             client = genai.Client(api_key=api_key)
-            
-            # --- CHUNKING LOGIC ---
-            # If it's a very long document, we split it into 5-page chunks
-            # This prevents the app from crashing on large files
+            # Break 300 pages into chunks of 15,000 characters
             chunks = [user_content[i:i+15000] for i in range(0, len(user_content), 15000)]
             full_result = []
             
-            progress_bar = st.progress(0)
-            
+            bar = st.progress(0)
             for i, chunk in enumerate(chunks):
-                prompt = f"Task: {task}. Target Language: {target_lang}. Text: {chunk}"
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash", # Note: Changed to 2.0-flash if 2.5 is not available
-                    contents=prompt
+                    model="gemini-2.0-flash", 
+                    contents=f"{task} to {target_lang}: {chunk}"
                 )
                 full_result.append(response.text)
-                progress_bar.progress((i + 1) / len(chunks))
+                bar.progress((i + 1) / len(chunks))
             
-            final_output = "\n".join(full_result)
-            
-            st.success("Done!")
-            st.markdown("### Result:")
-            st.write(final_output)
-            
-            # Allow the user to download the long translation
-            st.download_button("Download Full Result", final_output, file_name="translated_result.txt")
-
+            st.write("\n".join(full_result))
         except Exception as e:
             st.error(f"Error: {e}")
