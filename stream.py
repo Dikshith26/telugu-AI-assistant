@@ -8,7 +8,7 @@ st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
 with st.sidebar:
     st.title("⚙️ Settings")
     api_key = st.text_input("Paste Gemini API Key", type="password")
-    st.info("Tip: If you get a 'Red Error', wait 60 seconds and try again.")
+    st.info("Tip: If you get a '429' error, just wait 30 seconds.")
 
 st.title("📖 Reading Made Easy")
 st.markdown("---")
@@ -21,7 +21,6 @@ st.write("**Select Target Language:**")
 lang_options = ["Telugu", "Hindi", "English", "Spanish", "French", "Other"]
 target_lang = st.radio("Choose one:", lang_options, horizontal=True)
 
-# If 'Other' is picked, show a text box
 if target_lang == "Other":
     target_lang = st.text_input("Type other language:")
 
@@ -38,24 +37,25 @@ if st.button("Generate Result"):
         st.warning("Please enter some text.")
     else:
         try:
-            # Connect to Gemini
             client = genai.Client(api_key=api_key)
             
             prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
             
-            with st.spinner("Processing..."):
-                # Updated model name to fix the 404 error
+            with st.spinner("🚀 AI is working..."):
+                # Using the latest 2.5-flash for maximum speed and success
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash", 
+                    model="gemini-2.5-flash", 
                     contents=prompt
                 )
-                st.success("Done!")
+                st.success("Success!")
                 st.markdown("### Result:")
                 st.write(response.text)
                 
         except Exception as e:
             if "429" in str(e):
-                st.error("Too many requests! Please wait 60 seconds.")
+                st.error("Wait 30 seconds for the free tier to reset.")
+            elif "404" in str(e):
+                st.error("Model update required. Please use 'gemini-2.5-flash'.")
             else:
-                st.error(f"Technical error: {e}")
+                st.error(f"Error: {e}")
 
