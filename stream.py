@@ -1,39 +1,63 @@
 import streamlit as st
 from google import genai
 
-st.set_page_config(page_title="Gemini AI Assistant", layout="wide")
-st.title("🤖 My AI Business Tool")
+# Page Config
+st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
 
-# Sidebar for the Google Key
+# Sidebar for Security
 with st.sidebar:
-    st.header("Settings")
-    # This is the line that was showing the 'openai' link - I fixed it here:
-    raw_key = st.text_input("Paste Gemini API Key", type="password", help="Get it from aistudio.google.com")
-    api_key = raw_key.strip()
+    st.title("⚙️ Settings")
+    api_key = st.text_input("Paste Gemini API Key", type="password")
+    st.info("A universal tool to summarize and translate any language.")
 
-# Main Interface
-user_input = st.text_area("What should the AI help you with today?", height=150)
-mode = st.selectbox("Select Task", ["Summarize", "Translate to Telugu", "Professional Email"])
+# App Header
+st.title("📖 Reading Made Easy")
+st.markdown("Summarize or translate text between any two languages instantly.")
+st.markdown("---")
 
-if st.button("Generate"):
+# Main Input
+user_input = st.text_area("Paste your text here:", height=200, placeholder="Type or paste content in any language...")
+
+# Universal Settings
+col1, col2 = st.columns(2)
+
+with col1:
+    target_lang = st.text_input("Target Language:", value="Telugu", help="Which language should the AI write in?")
+
+with col2:
+    task = st.selectbox(
+        "Select Task:",
+        ["Summarize", "Translate", "Draft an Email", "Simplify (Explain like I'm 5)"]
+    )
+
+if st.button("Generate Result"):
     if not api_key:
-        st.error("Please enter your Gemini API key in the sidebar first!")
+        st.error("Please enter your Gemini API Key in the sidebar!")
     elif not user_input:
-        st.warning("Please enter some text for the AI to process.")
+        st.warning("Please enter some text first.")
     else:
         try:
-            # Connect to Google Gemini
             client = genai.Client(api_key=api_key)
             
-            with st.spinner("Processing..."):
-                #CHANGE THIS LINE
+            # Universal Prompt Logic
+            prompt = f"""
+            Identify the language of the provided text and perform the following task: {task}.
+            The final output MUST be written in {target_lang}.
+            
+            Text to process:
+            {user_input}
+            """
+            
+            with st.spinner(f"Processing your {task}..."):
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash", # Updated for April 2026
-                    contents=f"Perform this task: {mode}. Here is the text: {user_input}"
+                    model="gemini-2.0-flash", 
+                    contents=prompt
                 )
-                
                 st.success("Done!")
+                st.markdown("### Result:")
                 st.write(response.text)
+                
         except Exception as e:
-            st.error(f"Something went wrong: {e}")
+            st.error(f"An error occurred. Please check your API key.")
+            st.info(f"Technical details: {e}")
 
