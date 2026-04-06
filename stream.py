@@ -4,53 +4,48 @@ from google import genai
 # Page Config
 st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
 
-# Sidebar for Security
+# Sidebar
 with st.sidebar:
     st.title("⚙️ Settings")
     api_key = st.text_input("Paste Gemini API Key", type="password")
-    st.info("A universal tool to summarize and translate any language.")
+    st.info("Tip: If you get a 'Red Error', wait 60 seconds and try again.")
 
-# App Header
 st.title("📖 Reading Made Easy")
-st.markdown("Summarize or translate text between any two languages instantly.")
 st.markdown("---")
 
-# Main Input
-user_input = st.text_area("Paste your text here:", height=200, placeholder="Type or paste content in any language...")
+# 1. User Input
+user_input = st.text_area("Paste your text here:", height=200)
 
-# Universal Settings
-col1, col2 = st.columns(2)
+# 2. Language Selection (Option Buttons)
+st.write("**Select Target Language:**")
+lang_options = ["Telugu", "Hindi", "English", "Spanish", "French", "Other"]
+target_lang = st.radio("Choose one:", lang_options, horizontal=True)
 
-with col1:
-    target_lang = st.text_input("Target Language:", value="Telugu", help="Which language should the AI write in?")
+# If 'Other' is picked, show a text box
+if target_lang == "Other":
+    target_lang = st.text_input("Type other language:")
 
-with col2:
-    task = st.selectbox(
-        "Select Task:",
-        ["Summarize", "Translate", "Draft an Email", "Simplify (Explain like I'm 5)"]
-    )
+# 3. Task Selection
+task = st.selectbox(
+    "What should the AI do?",
+    ["Summarize", "Translate", "Draft an Email", "Simplify"]
+)
 
 if st.button("Generate Result"):
     if not api_key:
-        st.error("Please enter your Gemini API Key in the sidebar!")
+        st.error("Please enter your API Key in the sidebar!")
     elif not user_input:
-        st.warning("Please enter some text first.")
+        st.warning("Please enter some text.")
     else:
         try:
             client = genai.Client(api_key=api_key)
             
-            # Universal Prompt Logic
-            prompt = f"""
-            Identify the language of the provided text and perform the following task: {task}.
-            The final output MUST be written in {target_lang}.
+            prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
             
-            Text to process:
-            {user_input}
-            """
-            
-            with st.spinner(f"Processing your {task}..."):
+            with st.spinner("Processing..."):
+                # Using 1.5-flash which is often more stable for free-tier users
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash", 
+                    model="gemini-1.5-flash", 
                     contents=prompt
                 )
                 st.success("Done!")
@@ -58,6 +53,8 @@ if st.button("Generate Result"):
                 st.write(response.text)
                 
         except Exception as e:
-            st.error(f"An error occurred. Please check your API key.")
-            st.info(f"Technical details: {e}")
+            if "429" in str(e):
+                st.error("Too many requests! Please wait 60 seconds before clicking again.")
+            else:
+                st.error(f"Error: {e}")
 
