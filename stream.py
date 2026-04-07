@@ -1,69 +1,104 @@
 import streamlit as st
 from google import genai
-import time
-import os
+import PyPDF2
+from docx import Document
+import io
 
-# 1. Setup
-st.set_page_config(page_title="Pro Document AI", page_icon="📄")
+# 1. Page Config
+st.set_page_config(page_title="Ultimate AI Assistant", page_icon="🤖", layout="wide")
 
+# 2. Sidebar Setup
 with st.sidebar:
-    st.title("⚙️ Setup")
-    api_key = st.text_input("Gemini API Key", type="password")
-    st.info("Large files (up to 300 pages) work best with a verified API key.")
+    st.title("⚙️ AI Control Panel")
+    api_key = st.text_input("Enter Gemini API Key", type="password")
+    st.markdown("---")
+    st.info("Using **Gemini 2.5 Pro** for large-scale document analysis.")
 
-st.title("📄 High-Capacity Document AI")
+# 3. Main Interface
+st.title("🤖 Ultimate Professional AI Assistant")
 
-# 2. File Upload
-uploaded_file = st.file_uploader("Upload PDF or Word Doc", type=["pdf", "docx", "txt"])
+# Language List (Expanded)
+languages = sorted([
+    "Telugu", "Hindi", "English", "Tamil", "Kannada", "Malayalam", "Marathi", "Bengali",
+    "Spanish", "French", "German", "Japanese", "Korean", "Arabic", "Russian", "Portuguese"
+])
 
-# 3. Language & Task
-all_langs = sorted(["Telugu", "Hindi", "English", "Tamil", "Spanish", "French", "German"])
-target_lang = st.selectbox("Target Language", all_langs)
-task = st.selectbox("Task", ["Translate", "Summarize", "Explain"])
+col1, col2 = st.columns([1, 1])
 
-if st.button("🚀 Process Large Document"):
+with col1:
+    st.subheader("📥 Input")
+    input_type = st.radio("Source:", ["Manual Text", "Upload File"], horizontal=True)
+    
+    user_data = ""
+    if input_type == "Manual Text":
+        user_data = st.text_area("Paste your text here:", height=300)
+    else:
+        files = st.file_uploader("Upload PDF, DOCX, or TXT", type=["pdf", "docx", "txt"], accept_multiple_files=True)
+        if files:
+            for f in files:
+                if f.type == "application/pdf":
+                    pdf = PyPDF2.PdfReader(f)
+                    user_data += "\n".join([page.extract_text() for page in pdf.pages])
+                elif f.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    doc = Document(f)
+                    user_data += "\n".join([p.text for p in doc.paragraphs])
+                else:
+                    user_data += f.read().decode("utf-8")
+
+with col2:
+    st.subheader("🎯 Task Configuration")
+    mode = st.selectbox("What do you want to do?", [
+        "Translate", 
+        "Summarize Document", 
+        "Create Email Format", 
+        "Simplify Language",
+        "Extract Key Action Items"
+    ])
+    
+    target_lang = st.selectbox("Target Language:", languages)
+    
+    # Custom Instructions for Email
+    email_context = ""
+    if mode == "Create Email Format":
+        email_context = st.text_input("Email Tone (e.g., Professional, Friendly, Urgent):", "Professional")
+
+    process_btn = st.button("🚀 Process with Gemini 2.5 Pro", use_container_width=True)
+
+# 4. Execution Logic
+if process_btn:
     if not api_key:
-        st.error("Please enter your API Key!")
-    elif not uploaded_file:
-        st.warning("Please upload a file first.")
+        st.error("Please enter an API Key!")
+    elif not user_data:
+        st.warning("Please provide input data.")
     else:
         try:
             client = genai.Client(api_key=api_key)
             
-            # SAVE FILE LOCALLY TEMPORARILY
-            with open("temp_file.pdf", "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            # System Prompting based on Mode
+            prompts = {
+                "Translate": f"Translate the following text into {target_lang}. Keep the professional tone.",
+                "Summarize Document": f"Provide a detailed summary of this document in {target_lang}.",
+                "Create Email Format": f"Draft a {email_context} email in {target_lang} based on this content.",
+                "Simplify Language": f"Explain this content in very simple {target_lang} (5th-grade level).",
+                "Extract Key Action Items": f"List the main tasks and deadlines from this text in {target_lang}."
+            }
+
+            with st.spinner("Analyzing large-scale data..."):
+                # Gemini 2.5 Pro handles the 300 pages in one shot
+                response = client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=f"{prompts[mode]}\n\nContent:\n{user_data}"
+                )
             
-            with st.spinner("📤 Uploading to AI Studio... (This handles large files better)"):
-                # UPLOAD TO FILES API
-                uploaded_doc = client.files.upload(path="temp_file.pdf")
-                
-                # Wait for file to be processed by Google
-                while uploaded_doc.state.name == "PROCESSING":
-                    time.sleep(2)
-                    uploaded_doc = client.files.get(name=uploaded_doc.name)
-            
-            st.info("🧠 AI is reading the document...")
-            
-            # GENERATE CONTENT (Gemini can read the whole file at once this way!)
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[
-                    uploaded_doc,
-                    f"Please {task} this entire document into {target_lang}. "
-                    "If the document is very long, provide a detailed page-by-page translation."
-                ]
-            )
-            
-            st.success("✅ Done!")
-            st.markdown("### Result:")
+            st.success("✨ Analysis Complete!")
+            st.markdown("### 📝 Result")
             st.write(response.text)
             
-            # Clean up
-            os.remove("temp_file.pdf")
+            # Professional Download Options
+            st.download_button("📥 Download Result (.txt)", response.text, file_name=f"{mode}_result.txt")
 
         except Exception as e:
             if "429" in str(e):
-                st.error("🚨 Daily Limit Reached. Google only allows 250 requests/day for free. Please try again tomorrow or enable Billing in AI Studio.")
+                st.error("🚨 API Quota Reached. Gemini 2.5 Pro requires a 'Pay-as-you-go' account for large files.")
             else:
                 st.error(f"Error: {e}")
