@@ -1,104 +1,61 @@
 import streamlit as st
 from google import genai
-import PyPDF2
-from docx import Document
-import io
 
-# 1. Page Config
-st.set_page_config(page_title="Ultimate AI Assistant", page_icon="🤖", layout="wide")
+# Page Config
+st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
 
-# 2. Sidebar Setup
+# Sidebar
 with st.sidebar:
-    st.title("⚙️ AI Control Panel")
-    api_key = st.text_input("Enter Gemini API Key", type="password")
-    st.markdown("---")
-    st.info("Using **Gemini 2.5 Pro** for large-scale document analysis.")
+    st.title("⚙️ Settings")
+    api_key = st.text_input("Paste Gemini API Key", type="password")
+    st.info("Tip: If you get a '429' error, just wait 30 seconds.")
 
-# 3. Main Interface
-st.title("🤖 Ultimate Professional AI Assistant")
+st.title("📖 Reading Made Easy")
+st.markdown("---")
 
-# Language List (Expanded)
-languages = sorted([
-    "Telugu", "Hindi", "English", "Tamil", "Kannada", "Malayalam", "Marathi", "Bengali",
-    "Spanish", "French", "German", "Japanese", "Korean", "Arabic", "Russian", "Portuguese"
-])
+# 1. User Input
+user_input = st.text_area("Paste your text here:", height=200)
 
-col1, col2 = st.columns([1, 1])
+# 2. Language Selection (Option Buttons)
+st.write("**Select Target Language:**")
+lang_options = ["Telugu", "Hindi", "English", "Spanish", "French", "Other"]
+target_lang = st.radio("Choose one:", lang_options, horizontal=True)
 
-with col1:
-    st.subheader("📥 Input")
-    input_type = st.radio("Source:", ["Manual Text", "Upload File"], horizontal=True)
-    
-    user_data = ""
-    if input_type == "Manual Text":
-        user_data = st.text_area("Paste your text here:", height=300)
-    else:
-        files = st.file_uploader("Upload PDF, DOCX, or TXT", type=["pdf", "docx", "txt"], accept_multiple_files=True)
-        if files:
-            for f in files:
-                if f.type == "application/pdf":
-                    pdf = PyPDF2.PdfReader(f)
-                    user_data += "\n".join([page.extract_text() for page in pdf.pages])
-                elif f.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    doc = Document(f)
-                    user_data += "\n".join([p.text for p in doc.paragraphs])
-                else:
-                    user_data += f.read().decode("utf-8")
+if target_lang == "Other":
+    target_lang = st.text_input("Type other language:")
 
-with col2:
-    st.subheader("🎯 Task Configuration")
-    mode = st.selectbox("What do you want to do?", [
-        "Translate", 
-        "Summarize Document", 
-        "Create Email Format", 
-        "Simplify Language",
-        "Extract Key Action Items"
-    ])
-    
-    target_lang = st.selectbox("Target Language:", languages)
-    
-    # Custom Instructions for Email
-    email_context = ""
-    if mode == "Create Email Format":
-        email_context = st.text_input("Email Tone (e.g., Professional, Friendly, Urgent):", "Professional")
+# 3. Task Selection
+task = st.selectbox(
+    "What should the AI do?",
+    ["Summarize", "Translate", "Draft an Email", "Simplify"]
+)
 
-    process_btn = st.button("🚀 Process with Gemini 2.5 Pro", use_container_width=True)
-
-# 4. Execution Logic
-if process_btn:
+if st.button("Generate Result"):
     if not api_key:
-        st.error("Please enter an API Key!")
-    elif not user_data:
-        st.warning("Please provide input data.")
+        st.error("Please enter your API Key in the sidebar!")
+    elif not user_input:
+        st.warning("Please enter some text.")
     else:
         try:
             client = genai.Client(api_key=api_key)
             
-            # System Prompting based on Mode
-            prompts = {
-                "Translate": f"Translate the following text into {target_lang}. Keep the professional tone.",
-                "Summarize Document": f"Provide a detailed summary of this document in {target_lang}.",
-                "Create Email Format": f"Draft a {email_context} email in {target_lang} based on this content.",
-                "Simplify Language": f"Explain this content in very simple {target_lang} (5th-grade level).",
-                "Extract Key Action Items": f"List the main tasks and deadlines from this text in {target_lang}."
-            }
-
-            with st.spinner("Analyzing large-scale data..."):
-                # Gemini 2.5 Pro handles the 300 pages in one shot
+            prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
+            
+            with st.spinner("🚀 AI is working..."):
+                # Using the latest 2.5-flash for maximum speed and success
                 response = client.models.generate_content(
-                    model="gemini-2.5-pro",
-                    contents=f"{prompts[mode]}\n\nContent:\n{user_data}"
+                    model="gemini-2.5-flash", 
+                    contents=prompt
                 )
-            
-            st.success("✨ Analysis Complete!")
-            st.markdown("### 📝 Result")
-            st.write(response.text)
-            
-            # Professional Download Options
-            st.download_button("📥 Download Result (.txt)", response.text, file_name=f"{mode}_result.txt")
-
+                st.success("Success!")
+                st.markdown("### Result:")
+                st.write(response.text)
+                
         except Exception as e:
             if "429" in str(e):
-                st.error("🚨 API Quota Reached. Gemini 2.5 Pro requires a 'Pay-as-you-go' account for large files.")
+                st.error("Wait 30 seconds for the free tier to reset.")
+            elif "404" in str(e):
+                st.error("Model update required. Please use 'gemini-2.5-flash'.")
             else:
                 st.error(f"Error: {e}")
+
