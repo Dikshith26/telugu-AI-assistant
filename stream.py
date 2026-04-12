@@ -1,61 +1,48 @@
-import streamlit as st
-from google import genai
+import fitz # PyMuPDF
+from deep_translator import GoogleTranslator
 
-# Page Config
-st.set_page_config(page_title="Reading Made Easy", page_icon="📖")
+def translate_pdf(input_path, output_path, target_lang='te'):
+    """
+    Translates a PDF file to a target language.
+    Target lang examples: 'te' (Telugu), 'hi' (Hindi), 'en' (English), 'es' (Spanish)
+    """
+    try:
+        # Load the PDF
+        doc = fitz.open(input_path)
+        translator = GoogleTranslator(source='auto', target=target_lang)
+        
+        # Create a new PDF for the translated text
+        output_doc = fitz.open()
 
-# Sidebar
-with st.sidebar:
-    st.title("⚙️ Settings")
-    api_key = st.text_input("Paste Gemini API Key", type="password")
-    st.info("Tip: If you get a '429' error, just wait 30 seconds.")
+        print(f"Starting translation to {target_lang}...")
 
-st.title("📖 Reading Made Easy")
-st.markdown("---")
-
-# 1. User Input
-user_input = st.text_area("Paste your text here:", height=200)
-
-# 2. Language Selection (Option Buttons)
-st.write("**Select Target Language:**")
-lang_options = ["Telugu", "Hindi", "English", "Spanish", "French", "Other"]
-target_lang = st.radio("Choose one:", lang_options, horizontal=True)
-
-if target_lang == "Other":
-    target_lang = st.text_input("Type other language:")
-
-# 3. Task Selection
-task = st.selectbox(
-    "What should the AI do?",
-    ["Summarize", "Translate", "Draft an Email", "Simplify"]
-)
-
-if st.button("Generate Result"):
-    if not api_key:
-        st.error("Please enter your API Key in the sidebar!")
-    elif not user_input:
-        st.warning("Please enter some text.")
-    else:
-        try:
-            client = genai.Client(api_key=api_key)
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            text = page.get_text()
             
-            prompt = f"Task: {task}. Output Language: {target_lang}. Text: {user_input}"
+            # Create a new page in the output document
+            new_page = output_doc.new_page(width=page.rect.width, height=page.rect.height)
             
-            with st.spinner("🚀 AI is working..."):
-                # Using the latest 2.5-flash for maximum speed and success
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash", 
-                    contents=prompt
-                )
-                st.success("Success!")
-                st.markdown("### Result:")
-                st.write(response.text)
+            if text.strip():
+                # Split text into chunks to avoid API limits (approx 4500 chars)
+                chunks = [text[i:i + 4500] for i in range(0, len(text), 4500)]
+                translated_text = ""
                 
-        except Exception as e:
-            if "429" in str(e):
-                st.error("Wait 30 seconds for the free tier to reset.")
-            elif "404" in str(e):
-                st.error("Model update required. Please use 'gemini-2.5-flash'.")
-            else:
-                st.error(f"Error: {e}")
+                for chunk in chunks:
+                    translated_text += translator.translate(chunk)
+                
+                # Insert the translated text into the new page
+                # Note: For non-Latin scripts (Telugu/Hindi), you must provide a font file (.ttf)
+                new_page.insert_text((50, 50), translated_text, fontsize=11)
+            
+            print(f"Processed page {page_num + 1}")
+
+        output_doc.save(output_path)
+        print(f"\nSuccess! Translated PDF saved as: {output_path}")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Usage
+translate_pdf("input.pdf", "translated_output.pdf", target_lang="hi")
 
