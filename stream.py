@@ -1,50 +1,48 @@
 import streamlit as st
-import fitz  # PyMuPDF
+import fitz # PyMuPDF
 from deep_translator import GoogleTranslator
 import io
+import os
 
 st.set_page_config(page_title="PDF Translator", layout="centered")
 
-st.title("📄 Multi-Language PDF Translator")
-st.write("Upload a PDF to translate it. Note: Complex layouts may vary.")
+st.title("📄 Professional PDF Translator")
 
-uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-target_lang = st.selectbox("Select Target Language", 
-                          options=['te', 'hi', 'en'], 
-                          format_func=lambda x: {'te':'Telugu', 'hi':'Hindi', 'en':'English'}[x])
+# Check if font file exists in your GitHub repo
+font_path = "font.ttf" # <--- Make sure this matches your uploaded filename
 
-if uploaded_file is not None:
-    if st.button("Translate and Download"):
-        with st.spinner("Translating... Please wait."):
-            try:
-                doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-                output_doc = fitz.open()
-                translator = GoogleTranslator(source='auto', target=target_lang)
+uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+target_lang = st.selectbox("Language", ['te', 'hi', 'en'])
 
-                for page in doc:
-                    text = page.get_text()
-                    new_page = output_doc.new_page(width=page.rect.width, height=page.rect.height)
-                    
-                    if text.strip():
-                        # Translate in chunks to prevent errors
-                        translated = translator.translate(text[:4000])
-                        
-                        # THE FIX: Using 'mti' (Material Icons/Multi) or 'helv' 
-                        # For true Telugu/Hindi, 'noto' fonts are best if available.
-                        # We use insert_textbox to help with text wrapping.
-                        rect = fitz.Rect(50, 50, page.rect.width - 50, page.rect.height - 50)
-                        new_page.insert_textbox(rect, translated, fontsize=11, fontname="helv")
+if uploaded_file and st.button("Translate"):
+    if not os.path.exists(font_path):
+        st.error("Font file not found! Please upload 'font.ttf' to your GitHub repo.")
+    else:
+        with st.spinner("Translating..."):
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            output_doc = fitz.open()
+            translator = GoogleTranslator(source='auto', target=target_lang)
 
-                pdf_bytes = io.BytesIO()
-                output_doc.save(pdf_bytes)
+            for page in doc:
+                text = page.get_text()
+                new_page = output_doc.new_page(width=page.rect.width, height=page.rect.height)
                 
-                st.success("Translation Complete!")
-                st.download_button(
-                    label="📥 Download Translated PDF",
-                    data=pdf_bytes.getvalue(),
-                    file_name=f"translated_{target_lang}.pdf",
-                    mime="application/pdf"
-                )
-            except Exception as e:
-                st.error(f"Error: {e}")
+                if text.strip():
+                    translated = translator.translate(text[:4000])
+                    
+                    # Define the area where text will be placed
+                    rect = fitz.Rect(50, 50, page.rect.width - 50, page.rect.height - 50)
+                    
+                    # THE CRITICAL PART: Registering and using your custom font
+                    new_page.insert_textbox(
+                        rect, 
+                        translated, 
+                        fontsize=12, 
+                        fontname="fgen", # logical name
+                        fontfile=font_path # physical path to your .ttf file
+                    )
+
+            pdf_bytes = io.BytesIO()
+            output_doc.save(pdf_bytes)
+            st.download_button("Download Translated PDF", pdf_bytes.getvalue(), "translated.pdf")
 
